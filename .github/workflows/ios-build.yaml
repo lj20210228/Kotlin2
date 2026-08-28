@@ -1,0 +1,60 @@
+name: Build iOS IPA (KMP)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout koda
+        uses: actions/checkout@v4
+
+      - name: Podešavanje Java okruženja
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Provera Gradle Wrapper-a
+        run: |
+          ls -la
+          ls -la gradle/wrapper
+          chmod +x gradlew
+          ./gradlew --version
+
+      - name: Pokretanje Gradle Build-a za KMP
+        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+
+      - name: Kreiranje Xcode Archive
+        run: |
+          cd iosApp
+          xcodebuild \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath ../build/iosApp.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Pakovanje u IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r build/iosApp.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r iosApp.ipa Payload
+
+      - name: Upload IPA kao Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa
+          path: build/iosApp.ipa
