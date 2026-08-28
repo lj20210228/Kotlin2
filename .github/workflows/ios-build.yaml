@@ -13,7 +13,7 @@ jobs:
       - name: Checkout koda
         uses: actions/checkout@v4
 
-      - name: Podešavanje Java okruženja
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -22,38 +22,40 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Provera Gradle Wrapper-a
-        run: |
-          ls -la
-          ls -la gradle/wrapper
-          chmod +x gradlew
-          ./gradlew --version
+      - name: Make Gradle executable
+        run: chmod +x gradlew
 
-      - name: Pokretanje Gradle Build-a za KMP
-        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode
-
-      - name: Kreiranje Xcode Archive
+      - name: Check Xcode
         run: |
-          cd iosApp
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Build iOS Archive
+        run: |
           xcodebuild \
-            -project iosApp.xcodeproj \
+            -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
             -sdk iphoneos \
             -configuration Release \
-            -archivePath ../build/iosApp.xcarchive \
+            -archivePath "$GITHUB_WORKSPACE/build/iosApp.xcarchive" \
             archive \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
-      - name: Pakovanje u IPA
+      - name: Create unsigned IPA
         run: |
           mkdir -p build/Payload
-          cp -r build/iosApp.xcarchive/Products/Applications/*.app build/Payload/
+
+          cp -R \
+            build/iosApp.xcarchive/Products/Applications/*.app \
+            build/Payload/
+
           cd build
+
           zip -r iosApp.ipa Payload
 
-      - name: Upload IPA kao Artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ios-unsigned-ipa
